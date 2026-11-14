@@ -25,6 +25,7 @@ input is read.
 
 import os
 import shutil
+import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +33,19 @@ SOURCE = os.path.join(HERE, "entry.png")
 # entry.png is a real PNG (768x768, under 1 MiB), copied as-is.
 MAX_BYTES = 1048576
 MAX_SIDE = 1024
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def png_dimensions(path):
+    """Return (width, height) from the PNG IHDR, or None if not a PNG."""
+    with open(path, "rb") as f:
+        head = f.read(33)
+    if len(head) < 33 or head[:8] != PNG_SIGNATURE:
+        return None
+    if head[12:16] != b"IHDR":
+        return None
+    width, height = struct.unpack(">II", head[16:24])
+    return width, height
 
 
 def main():
@@ -42,6 +56,13 @@ def main():
         return 1
     if os.path.getsize(SOURCE) > MAX_BYTES:
         print("entry.png is over 1 MiB", file=sys.stderr)
+        return 1
+    dims = png_dimensions(SOURCE)
+    if dims is None:
+        print("entry.png is not a PNG", file=sys.stderr)
+        return 1
+    if dims[0] > MAX_SIDE or dims[1] > MAX_SIDE:
+        print("entry.png is over 1024x1024", file=sys.stderr)
         return 1
     target = os.path.join(out_dir, "entry.png")
     shutil.copyfile(SOURCE, target)
